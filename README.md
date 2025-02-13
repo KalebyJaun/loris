@@ -1,2 +1,2 @@
 # loris
-Loris is an AI based personal assistan.
+Loris is an AI based personal finance assistant.
