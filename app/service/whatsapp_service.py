@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from model.whatsapp_model import WhatsAppWebhook, Message
 
 class WhatsAppService:
-    def __init__(self, token: str, recipient_waid: str, version: str, phone_number_id: str):
+    def __init__(self, token: str, version: str, phone_number_id: str):
         if token == "" or not token:
             raise ValueError("Token not provided but required.")
         if phone_number_id == "" or not phone_number_id:
@@ -20,7 +20,6 @@ class WhatsAppService:
             "Content-type": "application/json",
             "Authorization": f"Bearer {token}",
         }
-        self.recipient_waid = recipient_waid
         self.version = version
         self.phone_number_id = phone_number_id
         self.base_url = f"https://graph.facebook.com/{version}"
@@ -99,9 +98,8 @@ class WhatsAppService:
                 #TODO: handle document messages
                 return JSONResponse(status_code=400, content={"status": "error"})
 
-        except json.JSONDecodeError:
-            logging.error("Failed to decode JSON")
-            return JSONResponse(status_code=400, content={"status": "error", "message": "Invalid JSON provided"})
+        except:
+            return JSONResponse(status_code=400, content={"status": "error"})
         
     def handle_webhook(self, webhook: WhatsAppWebhook):
         webhook_type = self._check_webhook_type(webhook=webhook)

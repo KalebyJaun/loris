@@ -40,7 +40,6 @@ async def handle_wpp_message(request: Request):
     
     wpp = WhatsAppService(
         token=settings.meta_acces_token,
-        recipient_waid=settings.meta_recipient_wand,
         phone_number_id=settings.meta_phone_number_id,
         version=settings.meta_api_version
     )
