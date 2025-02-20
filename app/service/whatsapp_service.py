@@ -6,7 +6,8 @@ import re
 from functools import wraps
 from fastapi.responses import JSONResponse
 
-from model.whatsapp_model import WhatsAppWebhook, Message
+from model.whatsapp_model import WhatsAppWebhook, Message, WhatsAppMedia
+from service.ai_service import OllamaService
 
 class WhatsAppService:
     def __init__(self, token: str, version: str, phone_number_id: str):
@@ -16,7 +17,11 @@ class WhatsAppService:
             raise ValueError("Phone Number ID but required.")
         if version == "" or not version:
             raise ValueError("Version not provided but required.")
-        self.headers = {
+        self.send_message_headers = {
+            "Content-type": "application/json",
+            "Authorization": f"Bearer {token}",
+        }
+        self.get_media_info_headers = {
             "Content-type": "application/json",
             "Authorization": f"Bearer {token}",
         }
@@ -24,6 +29,7 @@ class WhatsAppService:
         self.phone_number_id = phone_number_id
         self.base_url = f"https://graph.facebook.com/{version}"
         self.url = f"{self.base_url}/{phone_number_id}/messages"
+        self.ai_client = OllamaService()
 
     def _process_text_for_whatsapp(self, text):
         # Remove brackets
@@ -67,13 +73,29 @@ class WhatsAppService:
         try:
             response =  requests.post(
                 url=self.url,
-                headers=self.headers,
+                headers=self.send_message_headers,
                 data=data
             )
             if response.status_code == 200:
                 return response.json()
             response.raise_for_status()
         except Exception as e :
+            print(f"Error sending Message: {e}")
+            return response.json()
+    
+    def _get_media_info(self, image_id: str) -> WhatsAppMedia:
+        media_req_url = self.base_url + "/" + image_id
+        try:
+            response = requests.get(
+                url=media_req_url,
+                headers=self.get_media_info_headers
+            )
+            if response.status_code == 200:
+                print(f"Success getting media info: {response.json()}")
+                return WhatsAppMedia.model_validate(response.json())
+            response.raise_for_status()
+        except Exception as e:
+            print(f"Error getting media info: {e}")
             return response.json()
 
     def _process_text_message(self, message: Message):
@@ -82,6 +104,39 @@ class WhatsAppService:
 
         data = self._get_data_to_send(msg_from, msg_text)
         self._send_message(data)
+
+    def _process_image_message(self, message: Message):
+        image_id = message.image.id
+        msg_from = message.from_
+
+        media_info = self._get_media_info(image_id=image_id)
+
+        try:
+            media_response = requests.get(
+                url=media_info.url,
+                headers=self.get_media_info_headers,
+                stream=True
+            )
+            media_response.raise_for_status()
+        except Exception as e:
+            print(f"Error downloading media: {e}")
+
+        with open("../data/image.jpeg", "wb") as img_file:
+            for chunk in media_response.iter_content(1024):
+                img_file.write(chunk)
+
+        try:
+            image_info = self.ai_client.get_image_info("../data/image.jpeg")
+            print(f"Image Info: {image_info.model_dump_json()}")
+        except Exception as e:
+            print(f"Error processing image: {e}")
+
+        try:
+            data = self._get_data_to_send(msg_from, "Image Downloaded")
+        except Exception as e:
+            print(f"Error generating data to send: {e}")
+        self._send_message(data)
+        
     
     def _handle_message(self, message: Message):
         try:
@@ -89,7 +144,7 @@ class WhatsAppService:
                 self._process_text_message(message)
                 return JSONResponse(status_code=200, content={"status": "ok"})
             elif message.type == "image":
-                #TODO: handle image messages
+                self._process_image_message(message)
                 return JSONResponse(status_code=200, content={"status": "ok"})
             elif message.type == "audio":
                 #TODO: handle audio messages

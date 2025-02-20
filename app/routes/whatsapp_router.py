@@ -31,7 +31,6 @@ async def verify(
 @router.post("/wpp-webhook")
 async def handle_wpp_message(request: Request):
     body = fix_keys(await request.json())
-    print(body)
     
     try:
         webhook = WhatsAppWebhook(**body)
@@ -43,6 +42,7 @@ async def handle_wpp_message(request: Request):
         phone_number_id=settings.meta_phone_number_id,
         version=settings.meta_api_version
     )
+    
     return wpp.handle_webhook(webhook=webhook)
     
 

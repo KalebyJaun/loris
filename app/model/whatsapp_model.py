@@ -80,3 +80,11 @@ class Entry(BaseModel):
 class WhatsAppWebhook(BaseModel):
     object: str
     entry: List[Entry]
+
+class WhatsAppMedia(BaseModel):
+    messaging_product:  str
+    url: str
+    mime_type: str
+    sha256: str
+    file_size: int
+    id: str

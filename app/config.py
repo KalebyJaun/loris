@@ -11,8 +11,8 @@ class Settings:
         self.meta_api_version = self._get_env_variable('META_API_VERSION')
         self.meta_phone_number_id = self._get_env_variable('META_PHONE_NUMBER_ID')
         self.meta_verify_token = self._get_env_variable('META_VERIFY_TOKEN')
-        self.openai_api_key = self._get_env_variable('OPENAI_API_KEY')
-        self.open_ai_assistant_id = self._get_env_variable('OPENAI_ASSISTANT_ID')
+        self.ollama_host = self._get_env_variable('OLLAMA_HOST')
+        self.ollama_vision_model = self._get_env_variable('OLLAMA_VISION_MODEL')
 
     @staticmethod
     def _get_env_variable(name: str) -> str:
