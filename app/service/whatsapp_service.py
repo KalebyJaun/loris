@@ -2,12 +2,15 @@ import json
 import requests
 import logging
 import re
+from glob import glob
 
 from functools import wraps
 from fastapi.responses import JSONResponse
 
 from model.whatsapp_model import WhatsAppWebhook, Message, WhatsAppMedia
-from service.ai_service import OllamaService
+from tools.ollama_tools import OllamaTools
+from tools.openai_tools import OpenaiTools
+from tools.cv_tools import extract_text_with_ocr
 
 class WhatsAppService:
     def __init__(self, token: str, version: str, phone_number_id: str):
@@ -29,7 +32,7 @@ class WhatsAppService:
         self.phone_number_id = phone_number_id
         self.base_url = f"https://graph.facebook.com/{version}"
         self.url = f"{self.base_url}/{phone_number_id}/messages"
-        self.ai_client = OllamaService()
+        self.ai_client = OllamaTools()
 
     def _process_text_for_whatsapp(self, text):
         # Remove brackets
@@ -109,6 +112,10 @@ class WhatsAppService:
         image_id = message.image.id
         msg_from = message.from_
 
+        if f"../data/{image_id}.jpeg" in glob("../data/*"):
+            print(f"Image with Media ID {image_id} already processed.")
+            return
+        
         media_info = self._get_media_info(image_id=image_id)
 
         try:
@@ -121,18 +128,21 @@ class WhatsAppService:
         except Exception as e:
             print(f"Error downloading media: {e}")
 
-        with open("../data/image.jpeg", "wb") as img_file:
+        with open(f"../data/{image_id}.jpeg", "wb") as img_file:
             for chunk in media_response.iter_content(1024):
                 img_file.write(chunk)
 
         try:
-            image_info = self.ai_client.get_image_info("../data/image.jpeg")
-            print(f"Image Info: {image_info.model_dump_json()}")
+            
+            image_text = extract_text_with_ocr(f"../data/{image_id}.jpeg")
+            print(image_text)
+            image_info = self.ai_client.get_image_info(image_text.replace(",  ", ".").replace("$", "").replace("RG", "R$"))
+            #print(f"Image Info: {image_info.model_dump_json(indent=4)}")
         except Exception as e:
             print(f"Error processing image: {e}")
 
         try:
-            data = self._get_data_to_send(msg_from, "Image Downloaded")
+            data = self._get_data_to_send(msg_from, image_info)#.model_dump_json(indent=4)
         except Exception as e:
             print(f"Error generating data to send: {e}")
         self._send_message(data)
