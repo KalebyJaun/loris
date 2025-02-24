@@ -172,4 +172,5 @@ cython_debug/
 
 #Others
 data/
-ollama/
+ollama/ollama
+ollama/proxy/ssl

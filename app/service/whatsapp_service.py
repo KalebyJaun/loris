@@ -32,29 +32,12 @@ class WhatsAppService:
         if self.wpp_tools.is_image_already_processed(image_id):
             print(f"Image with Media ID {image_id} already processed.")
             return
-        
-        meta_media_info = self.wpp_tools.get_media_info(image_id=image_id)
+
+        local_image_path = self.wpp_tools.save_media_to_local_fs(message=message)
 
         try:
-            media_response = requests.get(
-                url=meta_media_info.url,
-                headers=self.wpp_tools.get_media_info_headers,
-                stream=True
-            )
-            media_response.raise_for_status()
-        except Exception as e:
-            print(f"Error downloading media: {e}")
-
-        with open(f"../data/{image_id}.jpeg", "wb") as img_file:
-            for chunk in media_response.iter_content(1024):
-                img_file.write(chunk)
-
-        try:
-            
-            image_text = extract_text_with_ocr(f"../data/{image_id}.jpeg")
-            print(image_text)
+            image_text = extract_text_with_ocr(local_image_path)
             image_info = self.ai_client.get_image_info(image_text.replace(",  ", ".").replace("$", "").replace("RG", "R$"))
-            #print(f"Image Info: {image_info.model_dump_json(indent=4)}")
         except Exception as e:
             print(f"Error processing image: {e}")
 

@@ -13,6 +13,7 @@ class Settings:
         self.meta_verify_token = self._get_env_variable('META_VERIFY_TOKEN')
         self.ollama_host = self._get_env_variable('OLLAMA_HOST')
         self.ai_model = self._get_env_variable('AI_MODEL')
+        self.local_image_path = self._get_env_variable('LOCAL_IMAGE_PATH')
         self.open_ai_api_key = self._get_env_variable('OPEN_AI_API_KEY')
 
     @staticmethod
