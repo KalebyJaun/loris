@@ -37,11 +37,7 @@ async def handle_wpp_message(request: Request):
     except ValidationError as e:
         raise HTTPException(status_code=400, detail=f"Invalid Webhook Format: {e.errors()}")
     
-    wpp = WhatsAppService(
-        token=settings.meta_acces_token,
-        phone_number_id=settings.meta_phone_number_id,
-        version=settings.meta_api_version
-    )
+    wpp = WhatsAppService()
     
     return wpp.handle_webhook(webhook=webhook)
     
