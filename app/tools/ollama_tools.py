@@ -8,7 +8,7 @@ class OllamaTools():
         self.client = Client(host=settings.ollama_host)
         self.vision_model = settings.ai_model
 
-    def get_image_info(self, imaget_text: str) -> str:
+    def get_image_info(self, image_text: str) -> str:
         SYSTEM_PROMPT = """Voce é um assistente responsável por extrair informações de extratos bancários e comprovantes de pagamento ou transações financeiras
         as transaçoes devem ser retornadas como json com as transaçoes no formato:
         {
@@ -22,7 +22,7 @@ class OllamaTools():
         """
 
         USER_PROMPT = f"""extraia as informaçoes do extrato bancario abaixo:
-                    {imaget_text}
+                    {image_text}
                     retorne um json com as transaçoes com as chaves abaixo:
                     
                     "estabelecimento":"nome da onde foi feita a transaçao",

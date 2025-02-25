@@ -1,7 +1,3 @@
-import json
-import requests
-import logging
-import re
 from glob import glob
 
 from functools import wraps
@@ -12,6 +8,7 @@ from tools.ollama_tools import OllamaTools
 from tools.openai_tools import OpenaiTools
 from tools.whatsapp_tools import WhatsAppTools
 from tools.cv_tools import extract_text_with_ocr
+from logger import logger
 
 class WhatsAppService:
     def __init__(self):
@@ -37,7 +34,7 @@ class WhatsAppService:
 
         try:
             image_text = extract_text_with_ocr(local_image_path)
-            image_info = self.ai_client.get_image_info(image_text.replace(",  ", ".").replace("$", "").replace("RG", "R$"))
+            image_info = self.ai_client.get_image_info(image_text)
         except Exception as e:
             print(f"Error processing image: {e}")
 
@@ -54,6 +51,7 @@ class WhatsAppService:
                 self._process_text_message(message)
                 return JSONResponse(status_code=200, content={"status": "ok"})
             elif message.type == "image":
+                logger.info("Received Image Message.")
                 self._process_image_message(message)
                 return JSONResponse(status_code=200, content={"status": "ok"})
             elif message.type == "audio":

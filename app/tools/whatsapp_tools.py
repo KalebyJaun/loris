@@ -33,7 +33,6 @@ class WhatsAppTools:
                 headers=self.headers
             )
             if response.status_code == 200:
-                print(f"Success getting media info: {response.json()}")
                 return WhatsAppMedia.model_validate(response.json())
             response.raise_for_status()
         except Exception as e:
