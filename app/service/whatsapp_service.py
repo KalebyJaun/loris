@@ -7,13 +7,14 @@ from model.whatsapp_model import WhatsAppWebhook, Message, WhatsAppMedia
 from tools.ollama_tools import OllamaTools
 from tools.openai_tools import OpenaiTools
 from tools.whatsapp_tools import WhatsAppTools
-from tools.cv_tools import extract_text_with_ocr
+from tools.cv_tools import OCRTools
 from logger import logger
 
 class WhatsAppService:
     def __init__(self):
         self.wpp_tools = WhatsAppTools()
         self.ai_client = OllamaTools()
+        self.ocr_tools = OCRTools()
 
     def _process_text_message(self, message: Message):
         msg_text = self.wpp_tools.generate_response(message.text.body)
@@ -33,7 +34,7 @@ class WhatsAppService:
         local_image_path = self.wpp_tools.save_media_to_local_fs(message=message)
 
         try:
-            image_text = extract_text_with_ocr(local_image_path)
+            image_text = self.ocr_tools.extract_text_with_ocr(local_image_path)
             image_info = self.ai_client.get_image_info(image_text)
         except Exception as e:
             print(f"Error processing image: {e}")
