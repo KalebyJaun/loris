@@ -2,10 +2,10 @@ import pytesseract
 from ollama_ocr import OCRProcessor
 
 class OCRTools:
-    def __init__(self, processor="ollama"):
+    def __init__(self, processor="pytesseract"):
         self.processor = processor
 
-    def _process_ocr_output(ocr_text: str) -> str:
+    def _process_ocr_output(self, ocr_text: str) -> str:
         return ocr_text.replace(",  ", ".").replace("$", "").replace("RG", "R$")
 
     def _pytesseract_extract_text_with_ocr(self, image_path: str) -> str:

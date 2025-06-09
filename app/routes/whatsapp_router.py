@@ -1,13 +1,14 @@
 import logging
 
 from fastapi import APIRouter, Request, Query, HTTPException
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, JSONResponse
 from pydantic import ValidationError
 
 from config import settings
 from helpers import fix_keys
 from service.whatsapp_service import WhatsAppService
 from model.whatsapp_model import WhatsAppWebhook
+from logger import log
 
 router = APIRouter()
 
@@ -17,28 +18,53 @@ async def verify(
     token: str = Query(None, alias="hub.verify_token"),
     challenge: str = Query(None, alias="hub.challenge")
 ):
-    if not mode or not token:
-        logging.info("MISSING_PARAMETER")
-        raise HTTPException(status_code=400, detail="Missing parameters")
+    try:
+        if not mode or not token:
+            log.warning("Missing webhook verification parameters", 
+                       mode=bool(mode), 
+                       token=bool(token))
+            raise HTTPException(status_code=400, detail="Missing parameters")
 
-    if mode == "subscribe" and token == settings.meta_verify_token:
-        logging.info("WEBHOOK_VERIFIED")
-        return PlainTextResponse(content=challenge, status_code=200)
+        if mode == "subscribe" and token == settings.meta_verify_token:
+            log.info("Webhook verification successful")
+            return PlainTextResponse(content=challenge, status_code=200)
 
-    logging.info("VERIFICATION_FAILED")
-    raise HTTPException(status_code=403, detail="Verification failed")
+        log.warning("Webhook verification failed", 
+                   mode=mode, 
+                   token_provided=bool(token))
+        raise HTTPException(status_code=403, detail="Verification failed")
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(e, "Error during webhook verification")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/wpp-webhook")
 async def handle_wpp_message(request: Request):
-    body = fix_keys(await request.json())
-    
     try:
-        webhook = WhatsAppWebhook(**body)
-    except ValidationError as e:
-        raise HTTPException(status_code=400, detail=f"Invalid Webhook Format: {e.errors()}")
-    
-    wpp = WhatsAppService()
-    
-    return wpp.handle_webhook(webhook=webhook)
+        body = fix_keys(await request.json())
+        log.info("Received webhook request", body_type=str(type(body).__name__))
+        
+        try:
+            webhook = WhatsAppWebhook(**body)
+        except ValidationError as e:
+            log.error(e, "Invalid webhook format", errors=str(e.errors()))
+            raise HTTPException(
+                status_code=400,
+                detail={"status": "error", "message": f"Invalid Webhook Format: {e.errors()}"}
+            )
+        
+        wpp = WhatsAppService()
+        response = await wpp.handle_webhook(webhook=webhook)
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(e, "Error processing webhook request")
+        raise HTTPException(
+            status_code=500,
+            detail={"status": "error", "message": "Internal server error"}
+        )
     
 
