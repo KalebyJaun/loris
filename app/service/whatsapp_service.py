@@ -6,21 +6,18 @@ from typing import Optional, Dict, Any
 import json
 
 from model.whatsapp_model import WhatsAppWebhook, Message, WhatsAppMedia
-from tools.ollama_tools import OllamaTools
-from tools.openai_tools import OpenaiTools
 from tools.whatsapp_tools import WhatsAppTools
-from tools.cv_tools import OCRTools
+from tools.transformer_tools import OCRTools, LLMTools
 from logger import log
 
 class WhatsAppService:
     def __init__(self):
         self.wpp_tools = WhatsAppTools()
-        self.ai_client = OllamaTools()
         self.ocr_tools = OCRTools()
-        self.openai_tools = OpenaiTools()
+        self.llm_tools = LLMTools(default_provider="openai")
         log.info("WhatsAppService initialized")
 
-    def _cleanup_local_file(self, file_path: str) -> None:
+    def __cleanup_local_file(self, file_path: str) -> None:
         """Clean up local files after processing"""
         try:
             if os.path.exists(file_path):
@@ -29,7 +26,7 @@ class WhatsAppService:
         except Exception as e:
             log.error(e, "Error cleaning up file", file_path=file_path)
 
-    def _process_text_message(self, message: Message) -> Dict[str, Any]:
+    def __process_text_message(self, message: Message) -> Dict[str, Any]:
         try:
             log.info("Processing text message", message_id=message.id)
             msg_text = self.wpp_tools.generate_response(message.text.body)
@@ -43,7 +40,7 @@ class WhatsAppService:
             log.error(e, "Error processing text message", message_id=message.id)
             raise
 
-    def _process_image_message(self, message: Message) -> Dict[str, Any]:
+    def __process_image_message(self, message: Message) -> Dict[str, Any]:
         image_id = message.image.id
         msg_from = message.from_
         local_image_path = None
@@ -59,40 +56,29 @@ class WhatsAppService:
             if not local_image_path or not os.path.exists(local_image_path):
                 raise FileNotFoundError("Failed to save image locally")
 
-            image_text = self.ocr_tools.extract_text_with_ocr(local_image_path)
+            image_text = self.ocr_tools.extract_text_from_image_with_ocr(local_image_path)
             if not image_text:
                 raise ValueError("No text could be extracted from the image")
 
             # Log OCR output
-            log.info("OCR output", 
-                    image_id=image_id,
-                    ocr_text=image_text)
+            # log.info("OCR output", 
+            #         image_id=image_id,
+            #         ocr_text=image_text)
 
-            # Try OpenAI first, fallback to Ollama if needed
-            try:
-                image_info = self.openai_tools.get_image_info(image_text)
-                log.info("Successfully processed image with OpenAI", 
-                        image_id=image_id,
-                        extracted_info=image_info)
-            except Exception as e:
-                log.warning("OpenAI processing failed, falling back to Ollama", 
-                           image_id=image_id, 
-                           error=str(e))
-                image_info = self.ai_client.get_image_info(image_text)
-                log.info("Successfully processed image with Ollama", 
-                        image_id=image_id,
-                        extracted_info=image_info)
+            # Use LLMTools for extraction with automatic fallback
+            text_info = self.llm_tools.get_text_info(image_text)
+            log.info("Image processed with LLMTools", image_id=image_id, extracted_info=text_info)
 
-            if not image_info:
+            if not text_info:
                 raise ValueError("Failed to extract information from image text")
 
             # Ensure image_info is a string
-            if isinstance(image_info, dict):
-                image_info = json.dumps(image_info)
-            elif not isinstance(image_info, str):
-                image_info = str(image_info)
+            if isinstance(text_info, dict):
+                text_info = json.dumps(text_info)
+            elif not isinstance(text_info, str):
+                text_info = str(text_info)
 
-            data = self.wpp_tools.get_data_to_send(msg_from, image_info)
+            data = self.wpp_tools.get_data_to_send(msg_from, text_info)
             self.wpp_tools.send_message(data)
             log.info("Image message processed successfully", image_id=image_id)
             return {"status": "success", "message": "Image processed successfully"}
@@ -102,7 +88,7 @@ class WhatsAppService:
             raise
         finally:
             if local_image_path:
-                self._cleanup_local_file(local_image_path)
+                self.__cleanup_local_file(local_image_path)
 
     def _handle_message(self, message: Message) -> JSONResponse:
         try:
@@ -112,10 +98,10 @@ class WhatsAppService:
             log.info("Handling message", message_type=message.type, message_id=message.id)
 
             if message.type == "text":
-                result = self._process_text_message(message)
+                result = self.__process_text_message(message)
                 return JSONResponse(status_code=200, content=result)
             elif message.type == "image":
-                result = self._process_image_message(message)
+                result = self.__process_image_message(message)
                 return JSONResponse(status_code=200, content=result)
             elif message.type == "audio":
                 log.info("Audio message received - not implemented", message_id=message.id)
