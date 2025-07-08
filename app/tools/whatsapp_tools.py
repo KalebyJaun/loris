@@ -3,6 +3,7 @@ import re
 import json
 from glob import glob
 from typing import Dict, Any, Optional
+import os
 
 from config import settings
 from model.whatsapp_model import WhatsAppMedia, WhatsAppWebhook, Message
@@ -29,7 +30,7 @@ class WhatsAppTools:
                 phone_number_id=self.phone_number_id,
                 api_version=self.version)
     
-    def _get_media_info(self, image_id: str) -> WhatsAppMedia:
+    def __get_media_info(self, image_id: str) -> WhatsAppMedia:
         media_req_url = self.base_url + "/" + image_id
         try:
             response = requests.get(
@@ -47,7 +48,7 @@ class WhatsAppTools:
             log.error(str(e), image_id=image_id)
             raise
     
-    def _get_media(self, meta_media_info: WhatsAppMedia) -> requests.Response:
+    def __get_media(self, meta_media_info: WhatsAppMedia) -> requests.Response:
         try:
             media_response = requests.get(
                 url=meta_media_info.url,
@@ -60,9 +61,23 @@ class WhatsAppTools:
             log.error(str(e), media_url=meta_media_info.url)
             raise
 
-    def is_image_already_processed(self, image_id: str) -> bool:
-        return f"{settings.local_image_path}{image_id}.jpeg" in glob(f"{settings.local_image_path}*")
-    
+    def is_media_already_processed(self, message: Message) -> bool:
+        media_type = message.type
+            
+
+        if media_type == "image":
+            media_id = message.image.id
+            extension = message.image.mime_type.split('/')[-1] if message.image.mime_type else ".jpeg"
+            return f"{settings.local_image_path}/{media_id}.{extension}" in glob(f"{settings.local_image_path}/*")
+        elif media_type == "audio":
+            media_id = message.audio.id
+            extension = message.audio.mime_type.split('/')[-1].split(';')[0] if message.audio.mime_type else ".ogg"
+            return f"{settings.localt_audio_path}/{media_id}.{extension}" in glob(f"{settings.local_image_path}/*")
+        elif media_type == "document":
+            media_id = message.document.id
+            extension = message.document.mime_type.split('/')[-1] if message.document.mime_type else ".bin"
+            return f"{settings.local_document_path}/{media_id}.{extension}" in glob(f"{settings.local_image_path}/*")
+        
     def process_text_for_whatsapp(self, text: str) -> str:
         # Remove brackets
         pattern = r"\【.*?\】"
@@ -139,23 +154,38 @@ class WhatsAppTools:
             raise
 
     def save_media_to_local_fs(self, message: Message) -> str:
-        """Save media to local filesystem"""
+        """Save media to local filesystem (supports image, audio, document)"""
         try:
-            image_id = message.image.id
-            local_image_path = settings.local_image_path
-
-            log.info("Saving media to local filesystem", image_id=image_id)
-            meta_media_info = self._get_media_info(image_id=image_id)
-            media_response = self._get_media(meta_media_info=meta_media_info)
-
-            file_path = f"{local_image_path}{image_id}.jpeg"
-            with open(file_path, "wb") as img_file:
-                for chunk in media_response.iter_content(1024):
-                    img_file.write(chunk)
+            media_type = message.type
             
+
+            if media_type == "image":
+                media_id = message.image.id
+                extension = message.image.mime_type.split('/')[-1] if message.image.mime_type else ".jpeg"
+                local_media_path = settings.local_image_path
+            elif media_type == "audio":
+                media_id = message.audio.id
+                extension = message.audio.mime_type.split('/')[-1].split(';')[0] if message.audio.mime_type else ".ogg"
+                local_media_path = settings.localt_audio_path
+            elif media_type == "document":
+                media_id = message.document.id
+                extension = message.document.mime_type.split('/')[-1] if message.document.mime_type else ".bin"
+                local_media_path = settings.local_image_path
+            else:
+                raise ValueError(f"Unsupported media type: {media_type}")
+
+            log.info("Saving media to local filesystem", media_type=media_type, media_id=media_id)
+            meta_media_info = self.__get_media_info(media_id)
+            media_response = self.__get_media(meta_media_info=meta_media_info)
+
+            file_path = f"{local_media_path}/{media_id}.{extension}"
+            with open(file_path, "wb") as media_file:
+                for chunk in media_response.iter_content(1024):
+                    media_file.write(chunk)
+
             log.info("Media saved successfully", file_path=file_path)
             return file_path
-            
+
         except Exception as e:
-            log.error(str(e), image_id=message.image.id if message.image else None)
+            log.error(str(e), media_id=media_id if 'media_id' in locals() else None)
             raise

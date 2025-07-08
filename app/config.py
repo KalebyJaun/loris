@@ -15,8 +15,17 @@ class Settings:
         self.open_ai_api_key = self._get_env_variable('OPEN_AI_API_KEY')
         self.groq_model = self._get_env_variable('GROQ_MODEL')
         self.groq_api_key = self._get_env_variable('GROQ_API_KEY')
-        self.local_image_path = self._get_env_variable('LOCAL_IMAGE_PATH')
-        self.local_ocr_text_path = self._get_env_variable('LOCAL_OCR_TEXT_PATH')
+        self.local_data_path = self._get_env_variable('LOCAL_DATA_PATH')
+        self.local_image_path = os.path.join(self.local_data_path, 'image')
+        self.local_ocr_text_path = os.path.join(self.local_data_path, 'ocr_text')
+        self.localt_audio_path = os.path.join(self.local_data_path, 'audio')
+        self.local_document_path = os.path.join(self.local_data_path, 'document')
+        
+        # Ensure Local Directories exists
+        os.makedirs(self.local_image_path, exist_ok=True)
+        os.makedirs(self.local_ocr_text_path, exist_ok=True)
+        os.makedirs(self.localt_audio_path, exist_ok=True)
+        os.makedirs(self.local_document_path, exist_ok=True)
 
     @staticmethod
     def _get_env_variable(name: str) -> str:

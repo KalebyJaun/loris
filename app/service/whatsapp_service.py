@@ -2,10 +2,10 @@ from glob import glob
 import os
 from functools import wraps
 from fastapi.responses import JSONResponse
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 import json
 
-from model.whatsapp_model import WhatsAppWebhook, Message, WhatsAppMedia
+from model.whatsapp_model import WhatsAppWebhook, Message
 from tools.whatsapp_tools import WhatsAppTools
 from tools.transformer_tools import OCRTools, LLMTools
 from logger import log
@@ -48,7 +48,7 @@ class WhatsAppService:
         try:
             log.info("Processing image message", image_id=image_id)
             
-            if self.wpp_tools.is_image_already_processed(image_id):
+            if self.wpp_tools.is_media_already_processed(message):
                 log.info("Image already processed", image_id=image_id)
                 return {"status": "skipped", "message": "Image already processed"}
 
@@ -86,11 +86,40 @@ class WhatsAppService:
         except Exception as e:
             log.error(e, "Error processing image", image_id=image_id)
             raise
-        finally:
-            if local_image_path:
-                self.__cleanup_local_file(local_image_path)
 
-    def _handle_message(self, message: Message) -> JSONResponse:
+    def __process_audio_message(self, message: Message) -> Dict[str, Any]:
+        audio_id = message.audio.id
+        msg_from = message.from_
+        local_audio_path = None
+
+        try:
+            log.info("Processing audio message", audio_id=audio_id)
+
+            if self.wpp_tools.is_media_already_processed(message):
+                log.info("Audio already processed", audio_id=audio_id)
+                return {"status": "skipped", "message": "Audio already processed"}
+
+            local_audio_path = self.wpp_tools.save_media_to_local_fs(message=message)
+            if not local_audio_path or not os.path.exists(local_audio_path):
+                raise FileNotFoundError("Failed to save audio locally")
+
+            audio_text_result = self.llm_tools.get_text_from_audio(local_audio_path)
+            log.info("Audio processed with LLMTools", audio_id=audio_id, extracted_text=audio_text_result)
+
+            if not audio_text_result or not audio_text_result.get("text"):
+                raise ValueError("Failed to extract text from audio")
+
+            text_info = self.llm_tools.get_text_info(audio_text_result["text"])
+            data = self.wpp_tools.get_data_to_send(msg_from, str(text_info))
+            self.wpp_tools.send_message(data)
+            log.info("Audio message processed successfully", audio_id=audio_id)
+            return {"status": "success", "message": "Audio processed successfully"}
+
+        except Exception as e:
+            log.error(e, "Error processing audio", audio_id=audio_id)
+            raise
+
+    def __handle_message(self, message: Message) -> JSONResponse:
         try:
             if not message or not message.type:
                 raise ValueError("Invalid message format")
@@ -104,11 +133,8 @@ class WhatsAppService:
                 result = self.__process_image_message(message)
                 return JSONResponse(status_code=200, content=result)
             elif message.type == "audio":
-                log.info("Audio message received - not implemented", message_id=message.id)
-                return JSONResponse(
-                    status_code=501,
-                    content={"status": "not_implemented", "message": "Audio processing not implemented"}
-                )
+                result = self.__process_audio_message(message)
+                return JSONResponse(status_code=200, content=result)
             else:
                 log.warning("Unsupported message type", 
                            message_type=message.type, 
@@ -136,7 +162,7 @@ class WhatsAppService:
 
             if webhook_type == "message":
                 message = webhook.entry[0].changes[0].value.messages[0]
-                return self._handle_message(message=message)
+                return self.__handle_message(message=message)
             else:
                 log.info("Webhook processed", webhook_type=webhook_type)
                 return JSONResponse(

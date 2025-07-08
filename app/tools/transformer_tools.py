@@ -6,6 +6,8 @@ from logger import log
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_groq import ChatGroq
+from openai import OpenAI
+from groq import Groq
 
 from config import settings
 from prompts.purchase_extractor import get_purchase_extractor_prompt, get_purchase_parser
@@ -92,14 +94,14 @@ class LLMTools:
             try:
                 client = self.__get_client(provider)
                 formatted_prompt = self.purchase_prompt.format(text=text)
-                log.debug(f"Sending request to {provider.capitalize()} via LangChain", model=(self.openai_model if provider=="openai" else self.groq_model), prompt_length=len(formatted_prompt))
+                log.debug(f"Sending request to {provider.capitalize()}", model=(self.openai_model if provider=="openai" else self.groq_model), prompt_length=len(formatted_prompt))
                 messages = [
                     SystemMessage(content="You are a helpful assistant that extracts purchase information from text."),
                     HumanMessage(content=formatted_prompt)
                 ]
                 response = client.invoke(messages)
                 result = self.purchase_parser.parse(response.content)
-                log.info(f"Successfully processed image with {provider.capitalize()}", extracted_info=result.model_dump())
+                log.info(f"Successfully processed text with {provider.capitalize()}", extracted_info=result.model_dump())
                 return result.model_dump()
             except Exception as e:
                 log.warning(f"{provider.capitalize()} processing failed, trying fallback if available", error=str(e))
@@ -107,5 +109,50 @@ class LLMTools:
         log.error(str(last_exception), "Failed to process text with both OpenAI and Groq via LangChain")
         return {
             "error": "Failed to process text with both OpenAI and Groq",
+            "message": str(last_exception)
+        }
+
+    def get_text_from_audio(self, audio_path: str) -> Dict[str, Any]:
+        """
+        Transcribe audio to text using the default LLM provider, with automatic fallback.
+        Args:
+            audio_path (str): Path to the audio file to be transcribed.
+        Returns:
+            Dict[str, Any]: The transcribed text or error message.
+        """
+        providers = [self.default_provider, "groq" if self.default_provider == "openai" else "openai"]
+        last_exception = None
+        for provider in providers:
+            try:
+                if provider == "openai":
+                    log.debug(f"Sending audio to OpenAI Whisper for transcription", audio_path=audio_path)
+                    client = OpenAI(api_key=self.openai_api_key)
+                    with open(audio_path, "rb") as audio_file:
+                        result = client.audio.transcriptions.create(
+                            model="whisper-1",
+                            file=audio_file
+                        )
+                    log.info(f"Successfully transcribed audio with OpenAI", text=result.text)
+                    return {"text": result.text}
+                elif provider == "groq":
+                    log.debug(f"Sending audio to Groq Whisper for transcription", audio_path=audio_path)
+                    client = Groq(api_key=self.groq_api_key)
+                    with open(audio_path, "rb") as audio_file:
+                        result = client.audio.transcriptions.create(
+                            file=audio_file,
+                            model="whisper-large-v3-turbo",
+                            response_format="verbose_json",
+                            temperature=0.0
+                        )
+                    log.info(f"Successfully transcribed audio with Groq", text=result.text)
+                    return {"text": result.text}
+                else:
+                    raise ValueError(f"Unsupported provider: {provider}")
+            except Exception as e:
+                log.warning(f"{provider.capitalize()} audio transcription failed, trying fallback if available", error=str(e))
+                last_exception = e
+        log.error(str(last_exception), "Failed to transcribe audio with both OpenAI and Groq")
+        return {
+            "error": "Failed to transcribe audio with both OpenAI and Groq",
             "message": str(last_exception)
         }
