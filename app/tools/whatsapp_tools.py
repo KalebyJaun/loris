@@ -76,7 +76,11 @@ class WhatsAppTools:
         elif media_type == "document":
             media_id = message.document.id
             extension = message.document.mime_type.split('/')[-1] if message.document.mime_type else ".bin"
-            return f"{settings.local_document_path}/{media_id}.{extension}" in glob(f"{settings.local_image_path}/*")
+            return f"{settings.local_document_path}/{media_id}.{extension}" in glob(f"{settings.local_document_path}/*")
+        elif media_type == "text":
+            media_id = message.id
+            extension = "txt"
+            return f"{settings.local_text_path}/{media_id}.{extension}" in glob(f"{settings.local_text_path}/*")
         
     def process_text_for_whatsapp(self, text: str) -> str:
         # Remove brackets
@@ -170,7 +174,11 @@ class WhatsAppTools:
             elif media_type == "document":
                 media_id = message.document.id
                 extension = message.document.mime_type.split('/')[-1] if message.document.mime_type else ".bin"
-                local_media_path = settings.local_image_path
+                local_media_path = settings.local_document_path
+            elif media_type == "text":
+                media_id = message.document.id
+                extension = "txt"
+                local_media_path = settings.local_text_path
             else:
                 raise ValueError(f"Unsupported media type: {media_type}")
 

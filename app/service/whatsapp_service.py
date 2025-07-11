@@ -28,11 +28,16 @@ class WhatsAppService:
 
     def __process_text_message(self, message: Message) -> Dict[str, Any]:
         try:
-            log.info("Processing text message", message_id=message.id)
-            msg_text = self.wpp_tools.generate_response(message.text.body)
+            text_id = message.id
             msg_from = message.from_
+            self.wpp_tools.is_media_already_processed(message)
+            if self.wpp_tools.is_media_already_processed(message):
+                log.info("Text message already processed", message_id=message.id)
+                return {"status": "skipped", "message": "Text message already processed"}
+            log.info("Processing text message", message_id=message.id)
+            msg_text = self.llm_tools.get_text_info(message.text.body)
 
-            data = self.wpp_tools.get_data_to_send(msg_from, msg_text)
+            data = self.wpp_tools.get_data_to_send(msg_from, str(msg_text))
             self.wpp_tools.send_message(data)
             log.info("Text message processed successfully", message_id=message.id)
             return {"status": "success", "message": "Text message processed"}

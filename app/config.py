@@ -20,12 +20,16 @@ class Settings:
         self.local_ocr_text_path = os.path.join(self.local_data_path, 'ocr_text')
         self.localt_audio_path = os.path.join(self.local_data_path, 'audio')
         self.local_document_path = os.path.join(self.local_data_path, 'document')
+        self.local_text_path = os.path.join(self.local_data_path, 'text')
+        self.local_json_output_path = os.path.join(self.local_data_path, 'json_output')
         
         # Ensure Local Directories exists
         os.makedirs(self.local_image_path, exist_ok=True)
         os.makedirs(self.local_ocr_text_path, exist_ok=True)
         os.makedirs(self.localt_audio_path, exist_ok=True)
         os.makedirs(self.local_document_path, exist_ok=True)
+        os.makedirs(self.local_text_path, exist_ok=True)
+        os.makedirs(self.local_json_output_path, exist_ok=True)
 
     @staticmethod
     def _get_env_variable(name: str) -> str:
