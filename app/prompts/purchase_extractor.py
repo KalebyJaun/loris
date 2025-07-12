@@ -17,6 +17,7 @@ IMPORTANT: You must provide values for all required fields. If a field is not fo
 - For currency, look for currency symbols (R$, $, €) or currency codes
 - For date, look for dates in any format and convert to YYYY-MM-DD
 - For payment_method, look for payment type indicators (credit, debit, cash, PIX)
+- For category, try to infer the category based on the text context
 - For optional fields, use empty list [] or 0.0 as appropriate
 
 {format_instructions}

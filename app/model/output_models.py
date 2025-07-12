@@ -18,7 +18,7 @@ class PurchaseInfo(BaseModel):
     )
     date: str = Field(
         description="Date of the purchase",
-        default="Unknown Date"
+        default="Unknown"
     )
     payment_method: str = Field(
         description="Method of payment used (credit card, debit card, cash, etc.)",
@@ -26,5 +26,5 @@ class PurchaseInfo(BaseModel):
     )
     category: Optional[str] = Field(
         description="Category of purchase (e.g., groceries, utilities, entertainment)",
-        default="Uncategorized"
+        default="Unknown"
     )

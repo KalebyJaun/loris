@@ -2,7 +2,7 @@ import pytesseract
 import re, os
 
 from typing import Dict, Any
-from logger import log
+from datetime import datetime
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_groq import ChatGroq
@@ -76,7 +76,7 @@ class LLMTools:
         self.purchase_parser = get_purchase_parser()
         log.info("LLMTools initialized", default_provider=self.default_provider)
 
-    def __get_client(self, provider: str):
+    def _get_client(self, provider: str):
         if provider == "openai":
             return ChatOpenAI(api_key=self.openai_api_key, model=self.openai_model, temperature=0.1)
         elif provider == "groq":
@@ -87,12 +87,14 @@ class LLMTools:
     def get_text_info(self, text: str) -> Dict[str, Any]:
         """
         Extract purchase information from text using the default LLM provider, with automatic fallback.
+        Tries OpenAI first, then Groq if OpenAI fails.
         """
         providers = [self.default_provider, "groq" if self.default_provider == "openai" else "openai"]
         last_exception = None
         for provider in providers:
             try:
-                client = self.__get_client(provider)
+                # Prepare and send prompt to LLM
+                client = self._get_client(provider)
                 formatted_prompt = self.purchase_prompt.format(text=text)
                 log.debug(f"Sending request to {provider.capitalize()}", model=(self.openai_model if provider=="openai" else self.groq_model), prompt_length=len(formatted_prompt))
                 messages = [
@@ -101,7 +103,12 @@ class LLMTools:
                 ]
                 response = client.invoke(messages)
                 result = self.purchase_parser.parse(response.content)
+                # If date is missing, set to current timestamp
+                if result.model_dump()["date"] == "Unknown":
+                    log.warning("Date field is missing in the extracted information, using default value")
+                    result.date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 log.info(f"Successfully processed text with {provider.capitalize()}", extracted_info=result.model_dump())
+                log.info("Saving output JSON to Local FS")
                 return result.model_dump()
             except Exception as e:
                 log.warning(f"{provider.capitalize()} processing failed, trying fallback if available", error=str(e))
@@ -115,16 +122,14 @@ class LLMTools:
     def get_text_from_audio(self, audio_path: str) -> Dict[str, Any]:
         """
         Transcribe audio to text using the default LLM provider, with automatic fallback.
-        Args:
-            audio_path (str): Path to the audio file to be transcribed.
-        Returns:
-            Dict[str, Any]: The transcribed text or error message.
+        Tries OpenAI first, then Groq if OpenAI fails.
         """
         providers = [self.default_provider, "groq" if self.default_provider == "openai" else "openai"]
         last_exception = None
         for provider in providers:
             try:
                 if provider == "openai":
+                    # Transcribe audio using OpenAI Whisper
                     log.debug(f"Sending audio to OpenAI Whisper for transcription", audio_path=audio_path)
                     client = OpenAI(api_key=self.openai_api_key)
                     with open(audio_path, "rb") as audio_file:
@@ -135,6 +140,7 @@ class LLMTools:
                     log.info(f"Successfully transcribed audio with OpenAI", text=result.text)
                     return {"text": result.text}
                 elif provider == "groq":
+                    # Transcribe audio using Groq Whisper
                     log.debug(f"Sending audio to Groq Whisper for transcription", audio_path=audio_path)
                     client = Groq(api_key=self.groq_api_key)
                     with open(audio_path, "rb") as audio_file:
